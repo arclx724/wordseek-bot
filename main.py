@@ -9,44 +9,52 @@ from config import *
 client = TelegramClient(SESSION, API_ID, API_HASH)
 
 words = load_words()
-possible = words.copy()
-used_words = set()
 
-last_guess = None
-game_active = False
-bot_enabled = False
-LAST_SENT = 0
+# 🔥 PER CHAT STATE
+chat_states = {}
+
+LAST_SENT = {}
 
 
-def reset_game():
-    global possible, last_guess, game_active, used_words
-    possible = words.copy()
-    used_words = set()
-    last_guess = None
-    game_active = True
+def get_chat(chat_id):
+    if chat_id not in chat_states:
+        chat_states[chat_id] = {
+            "enabled": False,
+            "game_active": False,
+            "possible": words.copy(),
+            "used": set(),
+            "last_guess": None
+        }
+    return chat_states[chat_id]
+
+
+def reset_game(state):
+    state["possible"] = words.copy()
+    state["used"] = set()
+    state["last_guess"] = None
+    state["game_active"] = True
     print("🎮 Game Started")
 
 
-def stop_game():
-    global game_active
-    game_active = False
+def stop_game(state):
+    state["game_active"] = False
     print("🛑 Game Stopped")
 
 
-async def safe_send(event, text):
-    global LAST_SENT
-
+async def safe_send(event, text, chat_id):
     try:
         now = time.time()
 
-        if now - LAST_SENT < 3:
+        if chat_id not in LAST_SENT:
+            LAST_SENT[chat_id] = 0
+
+        if now - LAST_SENT[chat_id] < 3:
             await asyncio.sleep(random.randint(3, 5))
 
         await asyncio.sleep(random.uniform(2, 4))
         await event.reply(text.lower())
 
-        LAST_SENT = time.time()
-        print("➡️ Sent:", text)
+        LAST_SENT[chat_id] = time.time()
 
     except Exception as e:
         print("Send error:", e)
@@ -54,93 +62,91 @@ async def safe_send(event, text):
 
 def extract_result(text):
     emojis = ["🟥", "🟩", "🟨"]
-    result = ""
-
-    for ch in text:
-        if ch in emojis:
-            result += ch
-
-    return result
+    return "".join([c for c in text if c in emojis])
 
 
 @client.on(events.NewMessage)
 async def handler(event):
-    global possible, last_guess, game_active, bot_enabled, used_words
+    chat_id = event.chat_id
+    state = get_chat(chat_id)
 
     try:
-        text = event.raw_text.lower()
+        text = event.raw_text.lower().strip()
     except:
         return
 
-    print("📩 MSG:", text)  # 🔥 DEBUG
+    print(f"[{chat_id}] 📩 {text}")
 
-    # 🔥 START BOT
-    if text.strip() == "arclx":
-        bot_enabled = True
-        print("✅ Bot Enabled")
+    # 🔥 ENABLE ONLY THIS CHAT
+    if text == "arclx":
+        state["enabled"] = True
+        print(f"✅ Enabled in {chat_id}")
         return
 
-    # 🛑 STOP BOT
-    if text.strip() == "stop":
-        bot_enabled = False
-        stop_game()
-        print("❌ Bot Disabled")
+    # 🛑 DISABLE ONLY THIS CHAT
+    if text == "stop":
+        state["enabled"] = False
+        stop_game(state)
+        print(f"❌ Disabled in {chat_id}")
         return
 
-    if not bot_enabled:
+    # ❌ ignore other chats
+    if not state["enabled"]:
         return
 
-    # 🏁 GAME WIN
+    # 🏁 WIN DETECT
     if "correct word:" in text or "guessed it correctly" in text:
-        stop_game()
+        stop_game(state)
         return
 
-    # 🎮 NEW GAME (FIXED)
+    # 🎮 NEW GAME
     if "/new" in text:
-        reset_game()
+        reset_game(state)
 
-        first_word = "audio"
-        last_guess = first_word
-        used_words.add(first_word)
+        first_word = "crane"
+        state["last_guess"] = first_word
+        state["used"].add(first_word)
 
-        await safe_send(event, first_word)
+        await safe_send(event, first_word, chat_id)
         return
 
-    if not game_active:
+    if not state["game_active"]:
         return
 
     # 🧠 PROCESS RESULT
     if "🟩" in text or "🟨" in text or "🟥" in text:
         try:
             result = extract_result(text)
-            print("🎯 Result:", result)
 
             if len(result) != 5:
                 return
 
-            if not last_guess:
+            if not state["last_guess"]:
                 return
 
-            possible = filter_words(possible, last_guess, result)
+            possible = filter_words(
+                state["possible"],
+                state["last_guess"],
+                result
+            )
 
-            possible = [w for w in possible if w not in used_words]
+            possible = [w for w in possible if w not in state["used"]]
 
-            print("🧠 Possible:", len(possible))
+            print(f"🧠 Possible: {len(possible)}")
 
             if not possible:
-                print("⚠️ Resetting...")
-                possible = [w for w in words if w not in used_words]
-
+                possible = [w for w in words if w not in state["used"]]
                 if not possible:
                     print("❌ Stuck")
                     return
 
             guess = best_guess(possible)
 
-            last_guess = guess
-            used_words.add(guess)
+            state["last_guess"] = guess
+            state["used"].add(guess)
+            state["possible"] = possible
 
-            await safe_send(event, guess)
+            await safe_send(event, guess, chat_id)
 
         except Exception as e:
             print("Error:", e)
