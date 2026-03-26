@@ -60,3 +60,4 @@ def best_guess(words):
         return sum(freq[c] for c in set(word))
 
     return max(words, key=score)
+
