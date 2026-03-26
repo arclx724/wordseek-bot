@@ -91,15 +91,24 @@ async def handler(event):
             if not last_guess:
                 return
 
+            # filter words
             possible = filter_words(possible, last_guess, result)
 
-            # 🔥 REMOVE USED WORDS
+            # remove used
             possible = [w for w in possible if w not in used_words]
 
+            # 🔥 FIX: agar empty ho gaya toh reset intelligently
             if not possible:
-                return
+                print("⚠️ No possible words, resetting...")
+                possible = [w for w in words if w not in used_words]
 
+                if not possible:
+                    print("❌ Completely stuck")
+                    return
+
+            # best guess
             guess = best_guess(possible)
+
             last_guess = guess
             used_words.add(guess)
 
