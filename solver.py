@@ -1,3 +1,5 @@
+from collections import Counter
+
 def load_words():
     with open("words.txt") as f:
         return [
@@ -8,21 +10,16 @@ def load_words():
 
 
 def match(word, guess, result):
-    word = word.lower()
-    guess = guess.lower()
-
-    # letter counts (important for duplicates)
-    from collections import Counter
     word_count = Counter(word)
 
-    # STEP 1: handle greens
+    # 🟩 GREEN
     for i in range(5):
         if result[i] == "🟩":
             if word[i] != guess[i]:
                 return False
             word_count[guess[i]] -= 1
 
-    # STEP 2: handle yellows
+    # 🟨 YELLOW
     for i in range(5):
         if result[i] == "🟨":
             if guess[i] not in word:
@@ -33,10 +30,9 @@ def match(word, guess, result):
                 return False
             word_count[guess[i]] -= 1
 
-    # STEP 3: handle reds (ONLY if extra)
+    # 🟥 RED (duplicate safe)
     for i in range(5):
         if result[i] == "🟥":
-            # agar letter already fully used ho chuka hai
             if word_count[guess[i]] > 0:
                 return False
 
@@ -51,13 +47,9 @@ def best_guess(words):
     if not words:
         return "crane"
 
-    # frequency-based scoring
-    from collections import Counter
-
     freq = Counter("".join(words))
 
     def score(word):
         return sum(freq[c] for c in set(word))
 
     return max(words, key=score)
-
