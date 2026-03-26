@@ -10,14 +10,17 @@ client = TelegramClient(SESSION, API_ID, API_HASH)
 # 🔒 STATE
 words = load_words()
 possible = words.copy()
+used_words = set()
+
 last_guess = None
 game_active = False
 bot_enabled = False
 
 
 def reset_game():
-    global possible, last_guess, game_active
+    global possible, last_guess, game_active, used_words
     possible = words.copy()
+    used_words = set()
     last_guess = None
     game_active = True
 
@@ -27,80 +30,57 @@ def stop_game():
     game_active = False
 
 
-# ✅ FIXED SEND FUNCTION
 async def safe_send(event, text):
     try:
         await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
-
-        # 🔥 always send to chat directly (no reply)
         await client.send_message(event.chat_id, text)
-
     except Exception as e:
         print("Send error:", e)
 
 
 @client.on(events.NewMessage)
 async def handler(event):
-    global possible, last_guess, game_active, bot_enabled
+    global possible, last_guess, game_active, bot_enabled, used_words
 
     try:
         text = event.raw_text.lower().strip()
     except:
         return
 
-    # =========================
-    # 🔥 MANUAL START (silent)
-    # =========================
+    # 🔥 START
     if text == "arclx":
         bot_enabled = True
         return
 
-    # =========================
-    # 🛑 MANUAL STOP (silent)
-    # =========================
+    # 🛑 STOP
     if text == "stop":
         bot_enabled = False
         stop_game()
         return
 
-    # =========================
-    # ❌ IGNORE if bot OFF
-    # =========================
     if not bot_enabled:
         return
 
-    # =========================
-    # 🏁 GAME END DETECT
-    # =========================
-    if "congrats! you guessed it correctly" in text or "correct word:" in text:
+    # 🏁 GAME END
+    if "correct word:" in text or "guessed it correctly" in text:
         stop_game()
         return
 
-    if "winner" in text:
-        stop_game()
-        return
-
-    # =========================
-    # 🎮 NEW GAME DETECT
-    # =========================
-    if "/new" in text or "start with /new" in text:
+    # 🎮 NEW GAME
+    if "/new" in text:
         reset_game()
 
-        first_word = "CRANE"
+        first_word = "crane"
         last_guess = first_word
+        used_words.add(first_word)
 
         await safe_send(event, first_word)
         return
 
-    # =========================
-    # ❌ IGNORE if game not active
-    # =========================
     if not game_active:
         return
 
-    # =========================
-    # 🧠 PROCESS RESULT
-    # =========================
+    # 🧠 RESULT PROCESS
     if "🟩" in text or "🟨" in text or "🟥" in text:
         try:
             result = text.strip().split()[-1]
@@ -113,8 +93,15 @@ async def handler(event):
 
             possible = filter_words(possible, last_guess, result)
 
+            # 🔥 REMOVE USED WORDS
+            possible = [w for w in possible if w not in used_words]
+
+            if not possible:
+                return
+
             guess = best_guess(possible)
             last_guess = guess
+            used_words.add(guess)
 
             await safe_send(event, guess)
 
@@ -124,7 +111,7 @@ async def handler(event):
 
 async def main():
     await client.start()
-    print("✅ Bot is running...")
+    print("✅ Bot running...")
     await client.run_until_disconnected()
 
 
