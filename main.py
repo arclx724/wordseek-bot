@@ -1,5 +1,6 @@
 import asyncio
 import random
+import time
 from telethon import TelegramClient, events
 
 from solver import load_words, filter_words, best_guess
@@ -15,6 +16,7 @@ used_words = set()
 last_guess = None
 game_active = False
 bot_enabled = False
+LAST_SENT = 0
 
 
 def reset_game():
@@ -30,12 +32,36 @@ def stop_game():
     game_active = False
 
 
+# 🔥 SMART SEND (ANTI BAN)
 async def safe_send(event, text):
+    global LAST_SENT
+
     try:
-        await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
-        await client.send_message(event.chat_id, text)
+        now = time.time()
+
+        # cooldown
+        if now - LAST_SENT < 3:
+            await asyncio.sleep(random.randint(3, 6))
+
+        await asyncio.sleep(random.uniform(2, 5))  # human delay
+        await event.reply(text.lower())
+
+        LAST_SENT = time.time()
+
     except Exception as e:
         print("Send error:", e)
+
+
+# 🔥 RESULT EXTRACTOR
+def extract_result(text):
+    emojis = ["🟥", "🟩", "🟨"]
+    result = ""
+
+    for ch in text:
+        if ch in emojis:
+            result += ch
+
+    return result
 
 
 @client.on(events.NewMessage)
@@ -83,7 +109,7 @@ async def handler(event):
     # 🧠 RESULT PROCESS
     if "🟩" in text or "🟨" in text or "🟥" in text:
         try:
-            result = text.strip().split()[-1]
+            result = extract_result(text)
 
             if len(result) != 5:
                 return
@@ -94,10 +120,10 @@ async def handler(event):
             # filter words
             possible = filter_words(possible, last_guess, result)
 
-            # remove used
+            # remove used words
             possible = [w for w in possible if w not in used_words]
 
-            # 🔥 FIX: agar empty ho gaya toh reset intelligently
+            # 🔥 FIX: fallback if empty
             if not possible:
                 print("⚠️ No possible words, resetting...")
                 possible = [w for w in words if w not in used_words]
@@ -106,7 +132,6 @@ async def handler(event):
                     print("❌ Completely stuck")
                     return
 
-            # best guess
             guess = best_guess(possible)
 
             last_guess = guess
