@@ -1,4 +1,3 @@
-[
   "aahed",
   "aalii",
   "aalst",
@@ -23828,4 +23827,3 @@
   "zymes",
   "zymic",
   "zymin"
-]
