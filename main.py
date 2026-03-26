@@ -27,10 +27,14 @@ def stop_game():
     game_active = False
 
 
+# ✅ FIXED SEND FUNCTION
 async def safe_send(event, text):
     try:
         await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
-        await event.reply(text)
+
+        # 🔥 always send to chat directly (no reply)
+        await client.send_message(event.chat_id, text)
+
     except Exception as e:
         print("Send error:", e)
 
@@ -39,7 +43,10 @@ async def safe_send(event, text):
 async def handler(event):
     global possible, last_guess, game_active, bot_enabled
 
-    text = event.raw_text.lower().strip()
+    try:
+        text = event.raw_text.lower().strip()
+    except:
+        return
 
     # =========================
     # 🔥 MANUAL START (silent)
@@ -63,7 +70,7 @@ async def handler(event):
         return
 
     # =========================
-    # 🏁 GAME END
+    # 🏁 GAME END DETECT
     # =========================
     if "congrats! you guessed it correctly" in text or "correct word:" in text:
         stop_game()
@@ -74,7 +81,7 @@ async def handler(event):
         return
 
     # =========================
-    # 🎮 NEW GAME
+    # 🎮 NEW GAME DETECT
     # =========================
     if "/new" in text or "start with /new" in text:
         reset_game()
@@ -98,7 +105,6 @@ async def handler(event):
         try:
             result = text.strip().split()[-1]
 
-            # ✅ FIX
             if len(result) != 5:
                 return
 
@@ -118,6 +124,7 @@ async def handler(event):
 
 async def main():
     await client.start()
+    print("✅ Bot is running...")
     await client.run_until_disconnected()
 
 
