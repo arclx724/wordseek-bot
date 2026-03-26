@@ -7,12 +7,15 @@ def match(word, guess, result):
     for i in range(5):
         if result[i] == "🟩" and word[i] != guess[i]:
             return False
+
         if result[i] == "🟨":
             if guess[i] not in word or word[i] == guess[i]:
                 return False
+
         if result[i] == "🟥":
             if guess[i] in word:
                 return False
+
     return True
 
 
