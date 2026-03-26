@@ -1,6 +1,6 @@
 def load_words():
     with open("words.txt") as f:
-        return [w.strip().upper() for w in f.readlines()]
+        return [w.strip().lower().replace(",", "").replace('"', "") for w in f.readlines()]
 
 
 def match(word, guess, result):
