@@ -8,7 +8,6 @@ from config import *
 
 client = TelegramClient(SESSION, API_ID, API_HASH)
 
-# 🔒 STATE
 words = load_words()
 possible = words.copy()
 used_words = set()
@@ -25,34 +24,34 @@ def reset_game():
     used_words = set()
     last_guess = None
     game_active = True
+    print("🎮 Game Started")
 
 
 def stop_game():
     global game_active
     game_active = False
+    print("🛑 Game Stopped")
 
 
-# 🔥 SMART SEND (ANTI BAN)
 async def safe_send(event, text):
     global LAST_SENT
 
     try:
         now = time.time()
 
-        # cooldown
         if now - LAST_SENT < 3:
-            await asyncio.sleep(random.randint(3, 6))
+            await asyncio.sleep(random.randint(3, 5))
 
-        await asyncio.sleep(random.uniform(2, 5))  # human delay
+        await asyncio.sleep(random.uniform(2, 4))
         await event.reply(text.lower())
 
         LAST_SENT = time.time()
+        print("➡️ Sent:", text)
 
     except Exception as e:
         print("Send error:", e)
 
 
-# 🔥 RESULT EXTRACTOR
 def extract_result(text):
     emojis = ["🟥", "🟩", "🟨"]
     result = ""
@@ -69,34 +68,38 @@ async def handler(event):
     global possible, last_guess, game_active, bot_enabled, used_words
 
     try:
-        text = event.raw_text.lower().strip()
+        text = event.raw_text.lower()
     except:
         return
 
-    # 🔥 START
-    if text == "arclx":
+    print("📩 MSG:", text)  # 🔥 DEBUG
+
+    # 🔥 START BOT
+    if text.strip() == "arclx":
         bot_enabled = True
+        print("✅ Bot Enabled")
         return
 
-    # 🛑 STOP
-    if text == "stop":
+    # 🛑 STOP BOT
+    if text.strip() == "stop":
         bot_enabled = False
         stop_game()
+        print("❌ Bot Disabled")
         return
 
     if not bot_enabled:
         return
 
-    # 🏁 GAME END
+    # 🏁 GAME WIN
     if "correct word:" in text or "guessed it correctly" in text:
         stop_game()
         return
 
-    # 🎮 NEW GAME
+    # 🎮 NEW GAME (FIXED)
     if "/new" in text:
         reset_game()
 
-        first_word = "crane"
+        first_word = "audio"
         last_guess = first_word
         used_words.add(first_word)
 
@@ -106,10 +109,11 @@ async def handler(event):
     if not game_active:
         return
 
-    # 🧠 RESULT PROCESS
+    # 🧠 PROCESS RESULT
     if "🟩" in text or "🟨" in text or "🟥" in text:
         try:
             result = extract_result(text)
+            print("🎯 Result:", result)
 
             if len(result) != 5:
                 return
@@ -117,19 +121,18 @@ async def handler(event):
             if not last_guess:
                 return
 
-            # filter words
             possible = filter_words(possible, last_guess, result)
 
-            # remove used words
             possible = [w for w in possible if w not in used_words]
 
-            # 🔥 FIX: fallback if empty
+            print("🧠 Possible:", len(possible))
+
             if not possible:
-                print("⚠️ No possible words, resetting...")
+                print("⚠️ Resetting...")
                 possible = [w for w in words if w not in used_words]
 
                 if not possible:
-                    print("❌ Completely stuck")
+                    print("❌ Stuck")
                     return
 
             guess = best_guess(possible)
