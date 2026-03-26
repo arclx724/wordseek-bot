@@ -28,8 +28,11 @@ def stop_game():
 
 
 async def safe_send(event, text):
-    await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
-    await event.reply(text)
+    try:
+        await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+        await event.reply(text)
+    except Exception as e:
+        print("Send error:", e)
 
 
 @client.on(events.NewMessage)
@@ -60,7 +63,7 @@ async def handler(event):
         return
 
     # =========================
-    # 🏁 GAME END (STOP)
+    # 🏁 GAME END
     # =========================
     if "congrats! you guessed it correctly" in text or "correct word:" in text:
         stop_game()
@@ -93,7 +96,11 @@ async def handler(event):
     # =========================
     if "🟩" in text or "🟨" in text or "🟥" in text:
         try:
-            result = text.split()[-1]
+            result = text.strip().split()[-1]
+
+            # ✅ FIX
+            if len(result) != 5:
+                return
 
             if not last_guess:
                 return
